@@ -4,12 +4,23 @@ import threading
 import time
 import os
 
-from fcoin3 import Fcoin
-from config import Api
-from config import Config
-from config import Log
-from config import Balance_info
-from config import Order_info
+#plat='fc'
+plat='manbi'
+if plat=='fc':
+    from fcoin3 import Api
+    from fc_config import Ath
+    from fc_config import Config
+    from fc_config import Log
+    from fc_config import Balance_info
+    from fc_config import Order_info
+elif plat=='manbi':
+    from manbi import Api
+    from manbi_config import Ath
+    from manbi_config import Config
+    from manbi_config import Log
+    from manbi_config import Balance_info
+    from manbi_config import Order_info
+
 
 
 # 已成交
@@ -32,13 +43,13 @@ soft_point = float(Config['soft_point'])
 cancel_time = float(Config['cancel_time'])
 
 # 初始化
-fcoin = Fcoin()
+api = Api()
 
 # 授权
-api_key = Api['key']
-api_secret = Api['secret']
-account = Api['account']
-fcoin.auth(api_key, api_secret)
+api_key = Ath['key']
+api_secret = Ath['secret']
+account = Ath['account']
+api.auth(api_key, api_secret)
 
 wait_orders_cancer_time={}
 
@@ -99,7 +110,7 @@ def get_float(value, length):
 
 def do_one_action(this_symbol):
 
-    balance_info = fcoin.get_balance()
+    balance_info = api.get_balance()
     this_symbol_type = get_symbol_type(this_symbol)[1]
     base_coin=get_symbol_type(this_symbol)[0]
     if balance_info is None:
@@ -142,7 +153,7 @@ def do_one_action(this_symbol):
         order_file.flush()
 
 
-    sub_order_list = fcoin.list_orders(symbol=this_symbol,states=submitted)
+    sub_order_list = api.list_orders(symbol=this_symbol,states=submitted)
     now_timestamp = nowTime()
 
     if sub_order_list is None:
@@ -193,7 +204,7 @@ def do_one_action(this_symbol):
         tmp_filled_order_split = tmp_filled_order_split + 1
         return
     tmp_filled_order_split=0
-    sub_order_list = fcoin.list_orders(symbol=this_symbol, states=filled)
+    sub_order_list = api.list_orders(symbol=this_symbol, states=filled)
 
     if sub_order_list is None:
         return
@@ -225,7 +236,7 @@ def do_one_action(this_symbol):
 
 # 买操作
 def buy_action(this_symbol,price, this_amount):
-    buy_result = fcoin.buy(this_symbol,price, this_amount)
+    buy_result = api.buy(this_symbol,price, this_amount)
     if buy_result is None:
         print(this_symbol,price,this_amount)
         print(gettime(),"挂 买单 失败")
@@ -240,7 +251,7 @@ def buy_action(this_symbol,price, this_amount):
 # 卖操作
 def sell_action(this_symbol, price,this_amount):
     this_amount = get_float(this_amount, 2)
-    sell_result = fcoin.sell(this_symbol,price, this_amount)
+    sell_result = api.sell(this_symbol,price, this_amount)
 
     if sell_result is None:
         print(gettime(),"挂 卖单失败")
@@ -254,11 +265,11 @@ def sell_action(this_symbol, price,this_amount):
 
 # 撤销订单
 def cancel_order_action(this_order_id):
-    fcoin.cancel_order(this_order_id)
+    api.cancel_order(this_order_id)
 
 # 获取行情
 def get_ticker(this_symbol):
-    ticker = fcoin.get_market_ticker(symbol)
+    ticker = api.get_market_ticker(symbol)
     if ticker is None:
         return None
     ticker_list = ticker['data']['ticker']
