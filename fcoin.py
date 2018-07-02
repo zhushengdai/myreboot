@@ -6,15 +6,14 @@ import time
 import base64
 import json
 from collections import OrderedDict
+from Data import *
+from fc_config import *
 
-class Fcoin():
+class Api():
     def __init__(self,base_url = 'https://api.fcoin.com/v2/'):
         self.base_url = base_url
-
-    def auth(self, key, secret):
-        self.key = bytes(key,'utf-8')
-        self.secret = bytes(secret, 'utf-8')
-
+        self.key = bytes(Ath['key'], 'utf-8')
+        self.secret = bytes(Ath['secret'], 'utf-8')
 
     def public_request(self, method, api_url, **payload):
         """request public url"""
@@ -90,7 +89,15 @@ class Fcoin():
 
     def get_market_ticker(self, symbol):
         """get market ticker"""
-        return self.public_request('GET', 'market/ticker/{symbol}'.format(symbol=symbol))
+        result = self.public_request('GET', 'market/ticker/{symbol}'.format(symbol=symbol))
+        if result == None:
+            return None
+        ticker = Ticker()
+        if  'data' not in result:
+            return  None
+        ticker.last = float(result['data']['ticker'][0])
+        ticker.symbol = symbol
+        return  ticker
 
     def get_market_depth(self, level, symbol):
         """get market depth"""
@@ -102,11 +109,54 @@ class Fcoin():
 
     def get_balance(self):
         """get user balance"""
-        return self.signed_request('GET', 'accounts/balance')
+        json = self.signed_request('GET', 'accounts/balance')
+        if json == None:
+            return None
+        result={}
+        if 'data' not in json:
+            return None
+        json=json['data']
+        if len(json) ==0:
+            return None
+        for b in json:
+            balance = Balance()
+            balance.available = float(b['available'])
+            balance.currency = b['currency'].lower()
+            balance.frozen = float(b['frozen'])
+            balance.balance = float(b['balance'])
+            result[balance.currency] = balance
+            #print(balance)
+        return result
 
     def list_orders(self, **payload):
         """get orders"""
-        return self.signed_request('GET','orders', **payload)
+
+        json = self.signed_request('GET','orders', **payload)
+        if json == None:
+            return None
+        order_list = []
+        json = json['data']
+        if json == None:
+            return None
+        if len(json) == 0 :
+            return None
+        for t in json:
+            order=Order()
+            order.id = t['id']
+            order.price = float(t['price'])
+            order.amount = float(t['amount'])
+            order.created_at = int(t['created_at'])
+            if t['side'] == 'buy':
+                order.side = Side.buy
+            else:
+                order.side = Side.sell
+            if t['state'] == 'filled':
+                order.state = State.filled
+            elif t['state'] == 'submitted':
+                order.state = State.submitted
+            order_list.append(order)
+            #print(order)
+        return order_list
 
     def create_order(self, **payload):
         """create order"""
@@ -143,4 +193,11 @@ class Fcoin():
         """get candle data"""
         return self.public_request('GET', 'market/candles/{resolution}/{symbol}'.format(resolution=resolution, symbol=symbol), **payload)
 
+# 守护进程
+if __name__ == '__main__':
+    api = Api()
+    #print(api.get_market_ticker('btcusdt'))
+    print(api.get_balance())
+    print(api.buy('btcusdt',6400,0.01))
+    print(api.list_orders(symbol='btcusdt',state=State.filled))
 
