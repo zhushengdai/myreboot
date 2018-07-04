@@ -31,12 +31,11 @@ elif plat == 'bigone':
     from bigone import *
     from bigone_config import *
 
-# 买金额
-buy_amount = Config['buy_amount']
-# 卖金额
-sell_amount = Config['sell_amount']
+# 金额
+amount = Tri_Config['amount']
+
 # 交易对
-symbol = Config['symbol']
+coin = Tri_Config['symbol']
 #
 logdir = Log['log_dir']
 
@@ -48,6 +47,9 @@ account = Ath['account']
 
 fee = Config['fee']
 
+ethusdt=coin+"usdt"
+ethbtc=coin + "btc"
+btcusdt="btcusdt"
 
 # 初始化
 api = Api()
@@ -57,7 +59,7 @@ wait_orders_cancer_time={}
 nowTime = lambda: int(round(time.time()))
 timestamp_path = nowTime()
 date=time.strftime("%Y_%m_%d", time.localtime(timestamp_path ))
-dir = logdir + plat + "_" + account+ "_" + symbol +'_' + date
+dir = logdir + plat + "_" + account+ "_" + "tri_" + coin +'_' + date
 if not os.path.exists(dir):
     os.makedirs(dir)
 curtime=time.strftime("%H_%M", time.localtime(timestamp_path ))
@@ -110,29 +112,38 @@ def get_float(value, length):
 
     return float(value)
 
-def do_one_action(this_symbol):
+def do_one_action():
 
     balance_info = api.get_balance()
-    this_symbol_type = get_symbol_type(this_symbol)[1]
-    base_coin=get_symbol_type(this_symbol)[0]
+    eth = coin
+    usdt="usdt"
+    btc="btc"
     if balance_info is None:
         print(gettime(), "查询账户失败 ")
         return
     else:
-        print(gettime(),balance_info[base_coin])
-        print(gettime(),balance_info[this_symbol_type])
-        symbol_avail_amount = balance_info[this_symbol_type].available
-        symbol_forzen_amount = balance_info[this_symbol_type].frozen
-        ustc_avail_amount = balance_info[base_coin].available
-        ustc_forzen_amount = balance_info[base_coin].frozen
+        print(gettime(),balance_info[coin])
+        print(gettime(),balance_info[usdt])
+        print(gettime(), balance_info[btc])
+        eth_avail_amount = balance_info[eth].available
+        eth_forzen_amount = balance_info[eth].frozen
+        ustc_avail_amount = balance_info[usdt].available
+        ustc_forzen_amount = balance_info[usdt].frozen
+        btc_avail_amount = balance_info[btc].available
+        btc_forzen_amount = balance_info[btc].frozen
 
-    ticker = api.get_market_ticker(this_symbol)
-    if ticker is None:
+    ticker_list = api.get_tickers()
+    if ticker_list is None:
         print(gettime(),'查询行情失败:')
         return
 
-    now_price = ticker.last
-    print(gettime(),symbol,'当前成交价',now_price)
+    ethusdt_price = ticker_list[ethusdt].last
+    btcusdt_price = ticker_list[btcusdt].last
+    ethbtc_price = ticker_list[ethbtc].last
+
+    print(gettime(),ethusdt,'当前成交价',ethusdt_price)
+    print(gettime(), btcusdt, '当前成交价', btcusdt_price)
+    print(gettime(), ethbtc, '当前成交价', ethbtc_price)
 
     global init_state
     global init_usdt
@@ -143,12 +154,12 @@ def do_one_action(this_symbol):
 
     if init_state:
         init_state=False
-        init_usdt = ustc_avail_amount + ustc_forzen_amount + now_price * symbol_avail_amount + now_price * symbol_forzen_amount
-        order_file.writelines(gettime()+'\t'+str(init_usdt)+"\t"+str(ustc_avail_amount)+"\t"+str(symbol_avail_amount)+"\t"+str(symbol_forzen_amount)+"\t"+str(now_price)+"\n")
+        init_usdt = ustc_avail_amount + ustc_forzen_amount +  (eth_avail_amount + eth_forzen_amount )  * ethusdt_price  + (btc_avail_amount + btc_forzen_amount) * btcusdt_price
+        order_file.writelines(gettime()+'\t'+str(init_usdt)+"\t"+str(ustc_avail_amount)+"\t"+str(eth_avail_amount + eth_forzen_amount)+"\t"+str(ethusdt_price)+str(btc_avail_amount + btc_forzen_amount)+"\t"+str(btcusdt_price)+"\n")
         order_file.writelines("")
         order_file.flush()
 
-    sub_order_list = api.list_pending_orders(this_symbol)
+    sub_order_list = api.list_pending_orders()
     now_timestamp = int( nowTime() )
 
     if sub_order_list is None:
@@ -167,38 +178,30 @@ def do_one_action(this_symbol):
                 else:
                     sell_order_num = sell_order_num + 1
                 order_id = order.id
-                if order_id not in wait_orders_cancer_time :
+                if order_id not in wait_orders_cancer_time or now_timestamp - wait_orders_cancer_time[order_id] > cancel_time:
                     print(gettime(),'开始取消订单',order)
                     wait_orders_cancer_time[order_id] = now_timestamp
                     cancel_order_action(order.id)
-                else:
-                    wait_order_time = wait_orders_cancer_time[order_id]
-                    if now_timestamp -  wait_order_time > cancel_time:
-                        print(wait_order_time,now_timestamp,"xxx")
-                        print(gettime(), '开始取消订单', order)
-                        wait_orders_cancer_time[order_id] = now_timestamp
-                        cancel_order_action(order.id)
 
-        #if buy_order_num >= 2 or sell_order_num >= 2:
-        #    return
+        if buy_order_num >= 2 or sell_order_num >= 2:
+            return
 
-    symbol_avail_num = symbol_avail_amount / sell_amount
-    symbol_forzen_num = symbol_forzen_amount / sell_amount
+    symbol_avail_num = symbol_avail_amount / amount
+    symbol_forzen_num = symbol_forzen_amount / amount
 
-    ustc_avail_num = ustc_avail_amount / (now_price * buy_amount )
-    usct_forzen_num = ustc_forzen_amount / (now_price * buy_amount )
+    ustc_avail_num = ustc_avail_amount / (now_price * amount )
+    usct_forzen_num = ustc_forzen_amount / (now_price * amount )
 
-    #if symbol_forzen_num > 3 or usct_forzen_num > 3:
-    #    return
+    if symbol_forzen_num > 3 or usct_forzen_num > 3:
+        return
     #if symbol_avail_num < 1:
     #    sell_action(this_symbol, now_price - soft_point, symbol_avail_amount)
     if ustc_avail_num >= 1 and symbol_avail_num < 3 and usct_forzen_num < 3 and symbol_avail_num + usct_forzen_num < 3:
-        buy_action(this_symbol,now_price + soft_point ,buy_amount)
+        buy_action(this_symbol,now_price + soft_point ,amount)
     if symbol_avail_num >= 1:
-        sell_action(this_symbol, now_price - soft_point ,sell_amount)
-        symbol_avail_num = symbol_avail_num -1
+        sell_action(this_symbol, now_price - soft_point ,amount)
     while symbol_avail_num > 2:
-        sell_action(this_symbol, now_price - soft_point ,sell_amount)
+        sell_action(this_symbol, now_price - soft_point ,amount)
         symbol_avail_num = symbol_avail_num -1
 
     if tmp_filled_order_split < filled_order_split:
@@ -225,7 +228,7 @@ def do_one_action(this_symbol):
                     if float(order_time) < start_time:
                         continue
                     order_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(order_time))
-                    order_fee = float(buy_amount) * float(fee) * float(now_price)
+                    order_fee = float(amount) * float(fee) * float(now_price)
                     fee_cost = float(fee_cost) + float(order_fee)
                     left_usdt = float(ustc_avail_amount) + float(ustc_forzen_amount) + (float(
                         symbol_forzen_amount) + float(symbol_avail_amount)) * float(now_price)
@@ -277,16 +280,16 @@ def cancel_order_action(this_order_id):
     api.cancel_order(this_order_id)
 
 def robot():
-    try:
-        do_one_action(symbol)
-    except:
-        print(gettime(),"出现异常")
+    #try:
+        do_one_action()
+    #except:
+    #    print(gettime(),"出现异常")
 
 # 定时器
 def timer():
     while True:
         robot()
-        time.sleep(5)
+        time.sleep(2)
 
 
 # 守护进程
