@@ -19,6 +19,10 @@ class Order():
         self.created_at = 0
         self.state = ''
         self.symbol = ''
+        self.fee = 0
+        self.money = 0
+        self.coin = ''
+        self.currency = ''
     def __str__(self):
         if self.state == State.submitted:
             return 'id\t' + str(self.id) + '\t价格\t' + str(self.price) + '\t数量\t' + str(self.amount)+ '\t挂单方向\t' + self.side
@@ -34,6 +38,8 @@ class Ticker():
     def __init__(self):
         self.last=0
         self.symbol=''
+        self.buy=0
+        self.sell=0
     def __str__(self):
         return self.symbol + "\t当前价\t" +str(self.last)
 

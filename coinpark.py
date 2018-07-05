@@ -168,13 +168,13 @@ class Api():
             result[balance.currency] = balance
         return result
 
-    def list_history_orders(self, this_symbol):
-        return None
-
-    def list_pending_orders(self, this_symbol):
+    def list_history_orders(self,this_symbol):
         """get orders"""
-        this_symbol = self.norm_symbol(this_symbol)
-        json = self.signed_request('POST','orderpending','orderpending/orderPendingList',page=1,size=20,pair=this_symbol)
+        if this_symbol is None:
+            json = self.signed_request('POST', 'orderpending', 'orderpending/orderHistoryList', page=1, size=20)
+        else:
+            this_symbol = self.norm_symbol(this_symbol)
+            json = self.signed_request('POST','orderpending','orderpending/orderHistoryList',page=1,size=20,pair=this_symbol)
         if json == None:
             return None
         order_list = []
@@ -191,7 +191,49 @@ class Api():
             if state == 3:
                 continue
             order = Order()
-            order.symbol = this_symbol
+            order.symbol = t['coin_symbol'] + t['currency_symbol']
+            order.coin = t['coin_symbol']
+            order.currency = t['currency_symbol']
+            order.id = t['id']
+            order.price = float(t['price'])
+            order.amount = float(t['amount'])
+            order.money = float(t['money'])
+            order.fee = float(t['fee'])
+            order.created_at = (int(t['createdAt']) / 1000 )
+            if t['order_side'] == '1':
+                order.side = Side.buy
+            else:
+                order.side = Side.sell
+            order.state = State.filled
+
+            order_list.append(order)
+            #print(order)
+        return order_list
+
+    def list_pending_orders(self, this_symbol):
+        """get orders"""
+        if this_symbol is None:
+            json = self.signed_request('POST', 'orderpending', 'orderpending/orderPendingList', page=1, size=20)
+        else:
+            this_symbol = self.norm_symbol(this_symbol)
+            json = self.signed_request('POST','orderpending','orderpending/orderPendingList',page=1,size=20,pair=this_symbol)
+        if json == None:
+            return None
+        order_list = []
+        json = json['result']
+        if json == None:
+            return None
+        json = json[0]['result']['items']
+        if json == None:
+            return None
+        if len(json) == 0:
+            return None
+        for t in json:
+            state = t['status']
+            if state == 3:
+                continue
+            order = Order()
+            order.symbol = t['coin_symbol'] + t['currency_symbol']
             order.id = t['id']
             order.price = float(t['price'])
             order.amount = float(t['amount'])
@@ -200,10 +242,7 @@ class Api():
                 order.side = Side.buy
             else:
                 order.side = Side.sell
-            if t['status'] == '3':
-                order.state = State.filled
-            else:
-                order.state = State.submitted
+            order.state = State.submitted
             order_list.append(order)
             #print(order)
         return order_list

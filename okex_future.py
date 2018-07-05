@@ -125,6 +125,29 @@ class Api():
             print(kline)
         return kline_list
 
+    def get_bollBands(self,kline_list,n):
+        avi_list=[]
+        size = len(kline_list)
+        for i in size - n -1, size-1:
+            avi_list.append(self.get_avi(kline_list,i,n))
+        md = 0
+        for i in size - n - 1 , size-1:
+            tmp = kline_list[i].close - avi_list[i]
+            md = md + tmp * tmp
+        md = md / n
+        md = md ** 0.5
+
+
+
+
+    def get_avi(self,kline_list,k,n):
+        sum=0
+        for i in k-n+1,k+1:
+            sum = sum + kline_list[i].close
+        sum = sum / n
+        return sum
+
+
     def get_balance(self):
         """get user balance"""
         json = self.signed_request('POST', '/trade/balance')
