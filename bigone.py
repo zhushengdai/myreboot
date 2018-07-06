@@ -211,8 +211,8 @@ class Api():
 if __name__ == '__main__':
 
     t = Api()
-    #print(t.get_market_ticker('ethusdt'))
-    #print(t.get_balance())
+    print(t.get_market_ticker('ethusdt'))
+    print(t.get_balance())
     #print(t.sell('ethusdt',460,0.05))
     #print(t.list_pending_orders('ethusdt'))
     print(t.list_history_orders('ethusdt'))
