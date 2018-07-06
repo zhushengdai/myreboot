@@ -39,9 +39,11 @@ class Ticker():
         self.last=0
         self.symbol=''
         self.buy=0
+        self.buy_amount=0
+        self.sell_amount=0
         self.sell=0
     def __str__(self):
-        return self.symbol + "\t当前价\t" +str(self.last)
+        return self.symbol + "\t当前价\t" +str(self.last) + '\t买一\t' + str(self.buy) + '\t卖一\t' + str(self.sell)
 
 class Side():
     buy='buy'

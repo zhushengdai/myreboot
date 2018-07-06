@@ -5,16 +5,14 @@ import sys
 import time
 import base64
 import json
-from collections import OrderedDict
 from coinbig_config import Ath
-from manbi_config import Status_info
 from Data import *
 import urllib
 import copy
 import operator
 
 class Api():
-    def __init__(self,base_url = 'http://www.3k2k.com:81/api/publics/v1'):
+    def __init__(self,base_url = 'https://www.coinbig.com/api/publics/v1'):
         self.base_url = base_url
         self.account = Ath['account']
         self.key = Ath['key']
@@ -22,7 +20,7 @@ class Api():
 
     def public_request(self, method, api_url, **payload):
         """request public url"""
-        r_url = self.base_url + api_url
+        r_url = self.create_uri(api_url)
         try:
             param = ''
             if payload:
@@ -32,10 +30,14 @@ class Api():
                     param += '&' + str(k[0]) + '=' + str(k[1])
                 param = param.lstrip('&')
                 r_url=r_url + "?" + param
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36 LBBROWSER'
+            }
+
             if method == 'GET':
-                r = requests.get(r_url, timeout=5)
+                r = requests.get(r_url, params=json.dumps(payload), headers = headers,timeout=5)
             else:
-                r = requests.post(r_url, data=json.dumps(payload),  timeout=5)
+                r = requests.post(r_url, params=json.dumps(payload), headers = headers,timeout=5)
             r.raise_for_status()
         except requests.exceptions.HTTPError as err:
             print(err)
@@ -65,7 +67,10 @@ class Api():
         r = {}
 
         try:
-            r = requests.post(full_url, data=json.dumps(payload),  timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36 LBBROWSER'
+            }
+            r = requests.post(full_url, data=payload, headers=headers, timeout=5)
             r.raise_for_status()
         except requests.exceptions.HTTPError as err:
             # print(err)
@@ -74,6 +79,8 @@ class Api():
             pass
 
         if r.status_code == 200:
+            text=str(r.json())
+            print(text)
             return r.json()
 
     def norm_symbol(self,this_symbol):
@@ -93,8 +100,8 @@ class Api():
         if info is None:
             # print("err1")
             return None
-        elif 'result' in info and len(info['result']):
-            item_info = info['result']
+        elif 'data' in info :
+            item_info = info['data']['ticker']
             ticker = Ticker()
             ticker.symbol = this_symbol
             ticker.last = float(item_info['last'])
@@ -102,7 +109,6 @@ class Api():
             ticker.sell = float(item_info['sell'])
             return ticker
         else:
-            # print("err2")
             return None
         return None
 
@@ -129,27 +135,16 @@ class Api():
         if json == None:
             return None
         result = {}
-        if 'result' not in json:
+        if 'data' not in json:
             return None
-        json = json['result']
-        json=json[0]
-        if 'result' not in json:
-            return None
-        json = json['result']
-        if 'assets_list' not in json:
-            return None
-        json = json['assets_list']
-        if len(json) == 0:
-            return None
-        for b in json:
-            balance = Balance()
-            balance.available = float(b['free'])
-            balance.currency = coin.lower()
-            balance.frozen = float(b['freezed'])
-            balance.balance = float(balance.available + balance.frozen)
-            #print(balance)
-            result[balance.currency] = balance
-        return result
+        b = json['data']
+        balance = Balance()
+        balance.available = float(b['free'])
+        balance.currency = coin.lower()
+        balance.frozen = float(b['freezed'])
+        balance.balance = float(balance.available + balance.frozen)
+        #print(balance)
+        return balance
 
     def list_history_orders(self,this_symbol):
         """get orders"""
@@ -248,7 +243,9 @@ class Api():
 # 守护进程
 if __name__ == '__main__':
     api = Api()
-    #print(api.get_market_ticker('conibtc'))
+    #print(api.get_market_ticker('btcusdt'))
     #print(api.get_balance())
+    print(api.buy('ethusdt',450,0.05))
     #print(api.list_orders(symbol='btcusdt',states=State.filled))
+
 

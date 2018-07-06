@@ -31,10 +31,9 @@ elif plat == 'bigone':
     from bigone import *
     from bigone_config import *
 
-# 买金额
-buy_amount = Config['buy_amount']
-# 卖金额
-sell_amount = Config['sell_amount']
+# 买卖金额
+amount = Config['buy_amount']
+
 # 交易对
 symbol = Config['symbol']
 #
@@ -47,6 +46,8 @@ cancel_time = float(Config['cancel_time'])
 account = Ath['account']
 
 fee = Config['fee']
+
+protect_price = float(Config['protect_price'])
 
 
 # 初始化
@@ -110,6 +111,16 @@ def get_float(value, length):
 
     return float(value)
 
+
+def soft_price(value,soft):
+    soft_value = value * soft
+    if type(value) is not float:
+        value = str(value)
+    flag = '.'
+    point = value.find(flag)
+    length = len(value) - point - 1
+    return get_float(soft_value,length)
+
 def do_one_action(this_symbol):
 
     balance_info = api.get_balance()
@@ -133,6 +144,10 @@ def do_one_action(this_symbol):
 
     now_price = ticker.last
     print(gettime(),symbol,'当前成交价',now_price)
+
+    if now_price < protect_price * 0.99 or now_price > protect_price * 1.01:
+        print(gettime(), '现价过高 或者 过低 超过保护价范围', symbol, '当前成交价', now_price)
+        return
 
     global init_state
     global init_usdt
@@ -158,86 +173,69 @@ def do_one_action(this_symbol):
 
     if sub_order_list and len(sub_order_list):
         for order in sub_order_list:
-            #print(gettime(),order)
             this_states = order.state
-            if this_states == State.submitted:
-                order_time = order.created_at
-                if order.side == 'buy':
-                    buy_order_num = buy_order_num + 1
-                else:
-                    sell_order_num = sell_order_num + 1
-                order_id = order.id
-                if order_id not in wait_orders_cancer_time :
-                    print(gettime(),'开始取消订单',order)
+            if order.side == 'buy':
+                buy_order_num = buy_order_num + 1
+            else:
+                sell_order_num = sell_order_num + 1
+            order_id = order.id
+            if order_id not in wait_orders_cancer_time :
+                print(gettime(),'开始取消订单',order)
+                wait_orders_cancer_time[order_id] = now_timestamp
+                cancel_order_action(order.id)
+            else:
+                wait_order_time = wait_orders_cancer_time[order_id]
+                if now_timestamp -  wait_order_time > cancel_time:
+                    print(wait_order_time,now_timestamp,"xxx")
+                    print(gettime(), '开始取消订单', order)
                     wait_orders_cancer_time[order_id] = now_timestamp
                     cancel_order_action(order.id)
-                else:
-                    wait_order_time = wait_orders_cancer_time[order_id]
-                    if now_timestamp -  wait_order_time > cancel_time:
-                        print(wait_order_time,now_timestamp,"xxx")
-                        print(gettime(), '开始取消订单', order)
-                        wait_orders_cancer_time[order_id] = now_timestamp
-                        cancel_order_action(order.id)
 
-        #if buy_order_num >= 2 or sell_order_num >= 2:
-        #    return
+    symbol_avail_num = symbol_avail_amount / amount
+    symbol_forzen_num = symbol_forzen_amount / amount
 
-    symbol_avail_num = symbol_avail_amount / sell_amount
-    symbol_forzen_num = symbol_forzen_amount / sell_amount
+    ustc_avail_num = ustc_avail_amount / (now_price * amount )
+    ustc_forzen_num = ustc_forzen_amount / (now_price * amount )
 
-    ustc_avail_num = ustc_avail_amount / (now_price * buy_amount )
-    usct_forzen_num = ustc_forzen_amount / (now_price * buy_amount )
+    avi_num = (symbol_avail_num+symbol_forzen_num+ustc_avail_num+ustc_forzen_num) / 2
+    max_avail_num = min(symbol_avail_num,ustc_avail_num)
 
-    #if symbol_forzen_num > 3 or usct_forzen_num > 3:
-    #    return
-    #if symbol_avail_num < 1:
-    #    sell_action(this_symbol, now_price - soft_point, symbol_avail_amount)
-    if ustc_avail_num >= 1 and symbol_avail_num < 3 and usct_forzen_num < 3 and symbol_avail_num + usct_forzen_num < 3:
-        buy_action(this_symbol,now_price + soft_point ,buy_amount)
-    if symbol_avail_num >= 1:
-        sell_action(this_symbol, now_price - soft_point ,sell_amount)
-        symbol_avail_num = symbol_avail_num -1
-    while symbol_avail_num > 2:
-        sell_action(this_symbol, now_price - soft_point ,sell_amount)
-        symbol_avail_num = symbol_avail_num -1
+    if ustc_avail_num > symbol_avail_num:
+        buy_action(this_symbol,now_price,ustc_avail_amount * 0.95)
+    else:
+        sell_action(this_symbol,now_price,symbol_avail_amount * 0.95)
 
-    if tmp_filled_order_split < filled_order_split:
-        tmp_filled_order_split = tmp_filled_order_split + 1
-        return
-    tmp_filled_order_split=0
     sub_order_list = api.list_history_orders(this_symbol)
 
     if sub_order_list is None:
         return
 
     if sub_order_list and len(sub_order_list):
-        sort_list = sorted(sub_order_list,key=lambda order_t:order_t.created_at,reverse=False)
+        sort_list = sorted(sub_order_list, key=lambda order_t: order_t.created_at, reverse=False)
         for order in sort_list:
-            this_states = order.state
-            if this_states == State.filled:
-                order_id = order.id
-                if order_id not in order_dict:
-                    order_dict[order_id] = 1
-                    if order_id not in wait_orders_cancer_time:
-                        continue
-                    order_time = wait_orders_cancer_time[order_id]
-                    #print(order_time,now_timestamp)
-                    if float(order_time) < start_time:
-                        continue
-                    order_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(order_time))
-                    order_fee = float(buy_amount) * float(fee) * float(now_price)
-                    fee_cost = float(fee_cost) + float(order_fee)
-                    left_usdt = float(ustc_avail_amount) + float(ustc_forzen_amount) + (float(
-                        symbol_forzen_amount) + float(symbol_avail_amount)) * float(now_price)
-                    loss_usdt = init_usdt - left_usdt - fee_cost
-                    order_file.writelines(
-                        str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" +
-                        order.side  + "\t" + str(order.price) + "\t" + str(
-                            order_fee) + "\n")
-                    order_file.flush()
+            order_id = order.id
+            if order_id not in order_dict:
+                order_dict[order_id] = 1
+                if order_id not in wait_orders_cancer_time:
+                    continue
+                order_time = wait_orders_cancer_time[order_id]
+                if float(order_time) < start_time:
+                    continue
+                order_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(order_time))
+                order_fee = order.fee
+
+                if order.side == Side.sell:
+                    order_fee = order_fee * now_price
+
+                fee_cost = float(fee_cost) + float(order_fee)
+                left_usdt = ustc_avail_amount + ustc_forzen_amount + (symbol_forzen_amount + symbol_avail_amount) * now_price
+                loss_usdt = init_usdt - left_usdt - fee_cost
+                order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" + order + "\n")
+                order_file.flush()
 
 # 买操作
 def buy_action(this_symbol,price, this_amount):
+    price = price + soft_price(price, soft_point)
     buy_result = api.buy(this_symbol,price, this_amount)
     if buy_result is None:
         print(gettime(),"挂 买单 失败",this_symbol,price,this_amount)
@@ -255,6 +253,7 @@ def buy_action(this_symbol,price, this_amount):
 
 # 卖操作
 def sell_action(this_symbol, price,this_amount):
+    price = price - soft_price(price, soft_point)
     this_amount = get_float(this_amount, 2)
     sell_result = api.sell(this_symbol,price, this_amount)
 
