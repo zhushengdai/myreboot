@@ -10,8 +10,8 @@ from Data import *
 #plat='manbi'
 #plat='bitz'
 #plat='ocx'
-plat = 'coinpark'
-#plat = 'bigone'
+#plat = 'coinpark'
+plat = 'bigone'
 if plat=='fc':
     from fcoin import *
     from fc_config import *
@@ -32,7 +32,7 @@ elif plat == 'bigone':
     from bigone_config import *
 
 # 买卖金额
-amount = Config['buy_amount']
+amount = Config['amount']
 
 # 交易对
 symbol = Config['symbol']
@@ -114,8 +114,7 @@ def get_float(value, length):
 
 def soft_price(value,soft):
     soft_value = value * soft
-    if type(value) is not float:
-        value = str(value)
+    value = str(value)
     flag = '.'
     point = value.find(flag)
     length = len(value) - point - 1
@@ -218,7 +217,7 @@ def do_one_action(this_symbol):
         buy_action(this_symbol,now_price  ,amount)
         sell_action(this_symbol, now_price , amount)
 
-    sub_order_list = api.list_history_orders(None)
+    sub_order_list = api.list_history_orders(this_symbol)
 
     if sub_order_list is None:
         return
@@ -243,7 +242,7 @@ def do_one_action(this_symbol):
                 fee_cost = float(fee_cost) + float(order_fee)
                 left_usdt = ustc_avail_amount + ustc_forzen_amount + (symbol_forzen_amount + symbol_avail_amount) * now_price
                 loss_usdt = init_usdt - left_usdt - fee_cost
-                order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" + order + "\n")
+                order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" + order.__str__() + "\n")
                 order_file.flush()
 
 # 买操作
