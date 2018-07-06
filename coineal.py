@@ -93,17 +93,6 @@ class Api():
             print(str(r.json()))
             return r.json()
 
-    # 取小数，不四舍五入
-    def get_float(self,value, length):
-        if type(value) is not float:
-            value = str(value)
-        value = str(value)
-        flag = '.'
-        point = value.find(flag)
-        length = int(length) + point
-        value = value[0:point] + value[point:length + 1]
-        return float(value)
-
     def norm_price(self,value,price):
         value = str(value)
         flag = '.'

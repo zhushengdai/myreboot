@@ -23,6 +23,7 @@ class Order():
         self.money = 0
         self.coin = ''
         self.currency = ''
+        self.usdtfee=0
     def __str__(self):
         if self.state == State.submitted:
             return 'id\t' + str(self.id) + '\t价格\t' + str(self.price) + '\t数量\t' + str(self.amount)+ '\t挂单方向\t' + self.side

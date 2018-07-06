@@ -158,6 +158,7 @@ def do_one_action():
     global loss_usdt
     global left_usdt
     global tmp_filled_order_split
+    global amount
 
     if init_state:
         init_state=False
@@ -201,34 +202,37 @@ def do_one_action():
     avi_num =  (eth_avail_num + ustc_avail_num + btc_avail_num + eth_forzen_num + ustc_forzen_num + btc_forzen_num) /3
     max_avail_num = min(ustc_avail_num,eth_avail_num,btc_avail_num)
 
+    if avi_num < 1 :
+        amount = amount * avi_num * 0.8
+
     if eth_avail_num < 1 :
         n1 = ustc_avail_num - avi_num
-        if n1 > amount / 3  :
+        if n1 > 0.1  :
             buy_action(ethusdt,ethusdt_price, n1 * amount)
         n2 = btc_avail_num - avi_num
-        if n2 > amount / 3 :
+        if n2 > 0.1 :
             buy_action(ethbtc,ethbtc_price , n2 * amount)
 
     if ustc_avail_num <1 :
         n1 = eth_avail_num - avi_num
-        if n1 > amount / 3:
+        if n1 > 0.1:
             sell_action(ethusdt , ethusdt_price , n1 * amount)
         n2 = btc_avail_num - avi_num
-        if n2 > amount / 3:
+        if n2 > 0.1:
             sell_action(btcusdt,btcusdt_price , n2 * ethbtc_price * amount)
 
     if btc_avail_num < 1:
         n1 = eth_avail_num - avi_num
-        if n1 > amount / 3:
+        if n1 > 0.1:
             sell_action(ethbtc, ethbtc_price , n1 * amount)
         n1 = ustc_avail_num - avi_num
-        if n1 > amount / 3:
+        if n1 > 0.1:
             buy_action(btcusdt, btcusdt_price, n1 * ethbtc_price * amount)
 
-    if max_avail_num > amount:
+    if max_avail_num > 1:
         cur_amount = amount
     else:
-        cur_amount = max_avail_num * 0.8
+        cur_amount = max_avail_num * amount * 0.8
     if cur_amount > amount * 0.5:
         if ethusdt_price > btcusdt_price * ethbtc_price :
             buy_action(btcusdt,btcusdt_price ,cur_amount)
@@ -266,16 +270,16 @@ def do_one_action():
                     order_fee = order_fee * ethusdt_price
                 elif base_cur == 'btc':
                     order_fee = order_fee * btcusdt_price
-
                 fee_cost = float(fee_cost) + float(order_fee)
-                left_usdt = ustc_avail_amount + ustc_forzen_amount + (eth_forzen_amount + eth_avail_amount) * ethusdt_price + (btc_avail_amount + btc_forzen_amount) * btcusdt_price
-                loss_usdt = init_usdt - left_usdt - fee_cost
-                order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" + order + "\n")
-                order_file.flush()
+        left_usdt = ustc_avail_amount + ustc_forzen_amount + (eth_forzen_amount + eth_avail_amount) * ethusdt_price + (btc_avail_amount + btc_forzen_amount) * btcusdt_price
+        loss_usdt = init_usdt - left_usdt - fee_cost
+        order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt)  + "\n")
+        order_file.flush()
 
 # 买操作
 def buy_action(this_symbol,price, this_amount):
     price = price + soft_price(price,soft_point)
+    this_amount = get_float(this_amount, 2)
     buy_result = api.buy(this_symbol,price, this_amount)
     if buy_result is None:
         print(gettime(),"挂 买单 失败",this_symbol,price,this_amount)

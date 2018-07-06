@@ -142,7 +142,7 @@ def do_one_action(this_symbol):
         return
 
     now_price = ticker.last
-    print(gettime(),symbol,'当前成交价',now_price)
+    print(gettime(),symbol,ticker)
 
     if now_price < protect_price * 0.99 or now_price > protect_price * 1.01:
         print(gettime(),'现价过高 或者 过低 超过保护价范围',symbol,'当前成交价',now_price)
@@ -154,6 +154,7 @@ def do_one_action(this_symbol):
     global loss_usdt
     global left_usdt
     global tmp_filled_order_split
+    global amount
 
     if init_state:
         init_state=False
@@ -199,23 +200,26 @@ def do_one_action(this_symbol):
     avi_num = (symbol_avail_num+symbol_forzen_num+ustc_avail_num+ustc_forzen_num) / 2
     max_avail_num = min(symbol_avail_num,ustc_avail_num)
 
-    if symbol_avail_num < 1 :
+    if avi_num < 1 :
+        amount = amount * avi_num * 0.9
+
+    if symbol_avail_num < 1 or symbol_avail_num < 0.8 * avi_num:
         n1 = ustc_avail_num - avi_num
-        if n1 > amount / 3  :
+        if n1 > 0.1  :
             buy_action(symbol,now_price, n1 * amount)
 
-    if ustc_avail_num <1 :
+    if ustc_avail_num <1 or ustc_avail_num < 0.8 * avi_num:
         n1 = symbol_avail_num - avi_num
-        if n1 > amount / 3:
+        if n1 > 0.1:
             sell_action(symbol , now_price , n1 * amount)
 
-    if max_avail_num > amount:
+    if max_avail_num  > 1:
         cur_amount = amount
     else:
-        cur_amount = max_avail_num * 0.8
+        cur_amount = max_avail_num * amount * 0.8
     if cur_amount > amount * 0.5:
-        buy_action(this_symbol,now_price  ,amount)
-        sell_action(this_symbol, now_price , amount)
+        buy_action(this_symbol,now_price  ,cur_amount)
+        sell_action(this_symbol, now_price , cur_amount)
 
     sub_order_list = api.list_history_orders(this_symbol)
 
@@ -233,21 +237,21 @@ def do_one_action(this_symbol):
                 order_time = wait_orders_cancer_time[order_id]
                 if float(order_time) < start_time:
                     continue
-                order_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(order_time))
                 order_fee = order.fee
 
-                if order.side == Side.sell:
+                if order.side == Side.sell and order.fee != order.usdtfee:
                     order_fee = order_fee * now_price
+                fee_cost = fee_cost + order_fee
+        left_usdt = ustc_avail_amount + ustc_forzen_amount + (symbol_forzen_amount + symbol_avail_amount) * now_price
+        loss_usdt = init_usdt - left_usdt - fee_cost
+        order_file.writelines(gettime() + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt)  + "\n")
+        order_file.flush()
 
-                fee_cost = float(fee_cost) + float(order_fee)
-                left_usdt = ustc_avail_amount + ustc_forzen_amount + (symbol_forzen_amount + symbol_avail_amount) * now_price
-                loss_usdt = init_usdt - left_usdt - fee_cost
-                order_file.writelines(str(order_time) + '\t' + str(left_usdt) + '\t' + str(fee_cost) + '\t' + str(loss_usdt) + "\t" + order.__str__() + "\n")
-                order_file.flush()
 
 # 买操作
 def buy_action(this_symbol,price, this_amount):
     price = price + soft_price(price, soft_point)
+    this_amount = get_float(this_amount, 2)
     buy_result = api.buy(this_symbol,price, this_amount)
     if buy_result is None:
         print(gettime(),"挂 买单 失败",this_symbol,price,this_amount)

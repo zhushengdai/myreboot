@@ -80,6 +80,15 @@ class Api():
                 this_symbol = this_symbol[0:l - 4] + "-" + this_symbol[-4:]
         return this_symbol.upper()
 
+    def norm_price(self, value, price):
+        value = str(value)
+        flag = '.'
+        point = value.find(flag)
+        length = len(value) - point
+        price = str(price)
+        price = price[0:point] + price[point:point + length]
+        return float(price)
+
     def _get(self, path, signed=False, **kwargs):
         return self.request('get', path, signed, **kwargs)
 
@@ -95,9 +104,16 @@ class Api():
             return None
         elif 'data' in info:
             item_info = info['data']
+            if item_info == None:
+                return None
             ticker = Ticker()
             ticker.symbol = this_symbol
             ticker.last = float(item_info['close'])
+            ticker.buy = float(item_info['bid']['price'])
+            ticker.sell = float(item_info['ask']['price'])
+            ticker.last = (ticker.buy + ticker.sell ) / 2
+            ticker.last = self.norm_price(ticker.buy,ticker.last)
+            #print(ticker)
             return ticker
         else:
             # print("err2")
@@ -111,17 +127,18 @@ class Api():
         if json == None:
             return None
         result = {}
-        if 'data' not in json:
+        if 'data' not in json or json['data'] is None:
             return None
         json = json['data']
+
         if len(json) == 0:
             return None
         for b in json:
             balance = Balance()
-            balance.available = float(b['balance'])
+            balance.balance = float(b['balance'])
             balance.currency = b['asset_id'].lower()
             balance.frozen = float(b['locked_balance'])
-            balance.balance = float(balance.available + balance.frozen)
+            balance.available = float(balance.balance - balance.frozen)
             #print(balance)
             result[balance.currency] = balance
         return result
@@ -136,6 +153,8 @@ class Api():
         if json == None:
             return None
         order_list = []
+        if 'data' not in json:
+            return None
         json = json['data']
         if json == None:
             return None
@@ -154,6 +173,10 @@ class Api():
             order.id = t['id']
             order.price = float(t['price'])
             order.amount = float(t['amount'])
+            order.avg_price = float(t['avg_deal_price'])
+            order.executed_volume = float(t['filled_amount'])
+            order.fee = order.avg_price * order.executed_volume * 0.001
+            order.usdtfee = order.fee
             order.created_at = int(time.mktime(time.strptime(t['updated_at'], '%Y-%m-%dT%H:%M:%SZ')))
             if t['side'] == 'BID':
                 order.side = Side.buy
@@ -165,7 +188,16 @@ class Api():
         return order_list
 
     def list_history_orders(self, this_symbol):
-        return self.list_orders(this_symbol, 'FILLED')
+        result1 = self.list_orders(this_symbol, 'FILLED')
+        result2 = self.list_orders(this_symbol, 'CANCELED')
+        result = []
+        if result1 !=None:
+            result = result1
+        if result2 != None:
+            result += result2
+        if len(result) == 0:
+            return None
+        return result
 
     def list_pending_orders(self, this_symbol):
         """get orders"""
@@ -182,10 +214,19 @@ class Api():
         }
         result = self._post('viewer/orders', True, data=data)
         if result == None:
+            print(str(result))
             return None
         if 'data' not in result:
+            print(str(result))
             return None
-        return result['data']['id']
+        result=result['data']
+        if result == None:
+            print(str(result))
+            return None
+        if 'id' not in result:
+            print(str(result))
+            return None
+        return result['id']
 
     def sell(self, symbol, price, amount):
         """buy someting"""
@@ -198,10 +239,19 @@ class Api():
         }
         result = self._post('viewer/orders', True, data=data)
         if result == None:
+            print(str(result))
             return None
         if 'data' not in result:
+            print(str(result))
             return None
-        return result['data']['id']
+        result=result['data']
+        if result == None:
+            print(str(result))
+            return None
+        if 'id' not in result:
+            print(str(result))
+            return None
+        return result['id']
 
     def cancel_order(self,order_id):
         """cancel specfic order"""
@@ -211,10 +261,10 @@ class Api():
 if __name__ == '__main__':
 
     t = Api()
-    print(t.get_market_ticker('ethusdt'))
-    print(t.get_balance())
+    #print(t.get_market_ticker('ethusdt'))
+    #print(t.get_balance())
     #print(t.sell('ethusdt',460,0.05))
     #print(t.list_pending_orders('ethusdt'))
-    print(t.list_history_orders('ethusdt'))
+    print(t.list_history_orders('btcusdt'))
 
-    print(t.cancel_order('66547114'))
+    #print(t.cancel_order('66547114'))
